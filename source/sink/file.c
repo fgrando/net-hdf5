@@ -17,5 +17,3 @@ void file_close(session_t *s)
 {
     fclose(s->fp);
 }
-
-extern sink_api_t SINK_API_FILE;

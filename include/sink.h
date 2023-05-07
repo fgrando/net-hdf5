@@ -1,3 +1,6 @@
+#ifndef SINK_HEADER_
+#define SINK_HEADER_
+
 #include <stdio.h>
 
 typedef struct {
@@ -15,6 +18,12 @@ typedef struct {
     session_t session;
 } sink_api_t;
 
+extern void file_open(session_t *s, char* path);
+extern void file_append(session_t *s, char *label, float time, char* buffer, int len);
+extern void file_close(session_t *s);
 
-extern sink_api_t SINK_API_FILE;
-extern sink_api_t SINK_API_HDF5;
+extern void hdf5_open(session_t *s, char* path);
+extern void hdf5_append(session_t *s, char *label, float time, char* buffer, int len);
+extern void hdf5_close(session_t *s);
+
+#endif

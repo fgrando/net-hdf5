@@ -21,6 +21,8 @@ CFLAGS += -g
 
 DIRS := ./include
 DIRS += ./source
+DIRS += ./source/sink
+
 ifeq ($(OS),Windows_NT)
 DIRS += ./source/win32
 else
