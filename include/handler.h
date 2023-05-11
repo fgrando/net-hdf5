@@ -5,7 +5,7 @@
 #include "sink.h"
 
 typedef struct {
-   int sock;
+   net_client_handler_args_t net;
    char name[20];
    sink_api_t sink;
 } handler_args_t;
@@ -19,7 +19,7 @@ typedef enum session_state{
 
 
 void handler_client(handler_args_t *args);
-handler_args_t handler_get_file_sink();
-handler_args_t handler_get_hdf5_sink();
+void handler_set_file_sink(handler_args_t *args);
+void handler_set_hdf5_sink(handler_args_t *args);
 
 #endif

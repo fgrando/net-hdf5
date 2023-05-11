@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "persistance.h"
 #include "print.h"
 
 #define MAX_CFG_PARAM 10
@@ -16,8 +17,18 @@ int parse_listen_port(char* str)
     return (atoi(token));
 }
 
-int parse_config(char *filepath, int* port)
+int parse_max_clients(char* str)
 {
+    char* token = str;
+    token = strtok(NULL, SEPARATOR);
+    return (atoi(token));
+}
+
+int parse_config(char *filepath, persistance_cfg_t *cfg)
+{
+    memset(cfg, 0, sizeof(persistance_cfg_t)); // clear all inputs
+    cfg->version = 1; // FIXME
+
     char line[MAX_CFG_LINE] = {0};
     FILE *cfgfile = 0;
 
@@ -36,8 +47,13 @@ int parse_config(char *filepath, int* port)
 
         if (0 == strcmp(param, "listen_port"))
         {
-            *port = parse_listen_port(line);
-            PRINT_INF("%s...%d", param, *port);
+            cfg->port = parse_listen_port(line);
+            PRINT_INF("%s...%d", param, cfg->port);
+        }
+        else if (0 == strcmp(param, "max_clients"))
+        {
+            cfg->max_clients = parse_max_clients(line);
+            PRINT_INF("%s...%d", param, cfg->max_clients);
         }
         else
         {
