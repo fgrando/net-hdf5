@@ -14,7 +14,7 @@ void idle_function(net_server_config_t *cfg, net_client_handler_args_t *args)
     char now[80] = {0};
     timestamp(now, sizeof(now), 0);
     //PRINT_DBG("%s: %d (serve %d)", now, countdown, *(cfg->serve));
-    PRINT_DBG("%c", '.');
+    //PRINT_DBG("%c", '.');
     if (countdown > 3000)
         *(cfg->serve) = 0;
     countdown++;
@@ -25,15 +25,18 @@ int main(int argc, char* argv[])
 {
     int alive = 1;
 
-#if demo
     net_client_handler_args_t handler_args = {0};
+#if demo
     net_client_handler_t handler = &net_handle_echo_demo;
 
     // allow clients to kill the server
     handler_args.private_ptr = (void*)&alive;
 #else
-    handler_args_t handler_args;
-    handler_set_file_sink(&handler_args);
+    handler_args_t custom_args;
+    handler_set_file_sink(&custom_args);
+    custom_args.keep_running = &alive; // allow clients to kill this server
+    // Send our special data structure. Our handler will know how to access the data
+    handler_args.private_ptr = (void*)&custom_args;
 
     net_client_handler_t handler = (net_client_handler_t)&handler_client;
     net_idle_hander_t    idle = &idle_function;

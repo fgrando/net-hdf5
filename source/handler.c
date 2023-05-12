@@ -4,6 +4,9 @@
 #include "sink.h"
 #include "net.h"
 #include "timestamp.h"
+#include "netcmd.h"
+
+#define SEPARATOR " "
 
 void handler_set_file_sink(handler_args_t *args)
 {
@@ -24,49 +27,59 @@ void handler_set_hdf5_sink(handler_args_t *args)
     strncat(args->name, "to-hdf5", sizeof(args->name)-1);
 }
 
-int parse_recv(char* buffer, int len);
+int parse_recv(char* buffer, int len, handler_args_t* data);
 
-void handler_client(handler_args_t *args)
+void handler_client(net_client_handler_args_t *args)
 {
-    PRINT_DBG("handler %s sock %d", args->name, args->net.sock);
+    handler_args_t* private = (handler_args_t*)args->private_ptr;
+
+    PRINT_DBG("handler %s sock %d", private->name, args->sock);
     char recvbuf[1000] = {0};
     int recvbuflen = 1000;
 
-    args->net.status = NET_SOCK_OK;
+    args->status = NET_SOCK_OK;
     int ret = 0;
-    ret = net_recv(args->net.sock, recvbuf, recvbuflen);
+    ret = net_recv(args->sock, recvbuf, recvbuflen);
     if (ret < 1)
     {
-        args->net.status = NET_SOCK_FAIL;
+        args->status = NET_SOCK_FAIL;
         PRINT_INF("%s","socket fail");
         return;
     }
-    PRINT_DBG("%d >>> %s", args->net.sock, recvbuf);
-    if (parse_recv(recvbuf, ret))
+    PRINT_DBG("%d >>> %s", args->sock, recvbuf);
+    if (parse_recv(recvbuf, ret, private))
     {
-        PRINT_INF("%s","socket close");
-        args->net.status = NET_SOCK_CLOSED;
-        return;
+        // command is bad. reply nack
+        memset(recvbuf, 0, sizeof(recvbuf));    
+        ret = netcmd_to_str(netcmd_nack, recvbuf, sizeof(recvbuf));
+    }
+    else
+    {
+        // command is good. reply ack
+        memset(recvbuf, 0, sizeof(recvbuf));    
+        ret = netcmd_to_str(netcmd_ack, recvbuf, sizeof(recvbuf));
     }
 
-    memset(recvbuf, 0, sizeof(recvbuf));
-    timestamp(recvbuf, sizeof(recvbuf), 0);
-    PRINT_DBG("%d <<< %s", args->net.sock, recvbuf);
-    ret = net_send(args->net.sock, recvbuf, ret);
-
+    PRINT_DBG("%d <<< %s", args->sock, recvbuf);
+    ret = net_send(args->sock, recvbuf, ret);    
     if (ret < 1)
     {
-        args->net.status = NET_SOCK_FAIL;
+        args->status = NET_SOCK_FAIL;
         PRINT_ERR("%s","socket fail");
         return;
     }
 }
 
-int parse_recv(char* buffer, int len)
+int parse_recv(char* buffer, int len, handler_args_t* data)
 {
-    if (len < 1)
+    char *cmd = strtok(buffer, SEPARATOR);
+
+    if(netcmd_str_equal(netcmd_abort, cmd, strlen(cmd)))
     {
-        return 1;
+        PRINT_INF("Remote shutdown activated");
+        *data->keep_running = 0;
+        return 0;
     }
-    return 0;
+
+    return 1;
 }

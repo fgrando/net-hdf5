@@ -2,12 +2,12 @@
 #include "string.h"
 #include "print.h"
 
-#define NETCMD_NACK "netcmd_nack"
-#define NETCMD_ACK "netcmd_ack"
-#define NETCMD_ABORT "netcmd_abort"
-#define NETCMD_CREATE "netcmd_create"
-#define NETCMD_APPEND "netcmd_append"
-#define NETCMD_CLOSE "netcmd_close"
+#define NETCMD_NACK   "nack"
+#define NETCMD_ACK    "ack"
+#define NETCMD_ABORT  "abort"
+#define NETCMD_CREATE "create"
+#define NETCMD_APPEND "append"
+#define NETCMD_CLOSE  "close"
 
 
 int netcmd_to_str(netcmd_e cmd, char* buffer, int len)
@@ -17,27 +17,27 @@ int netcmd_to_str(netcmd_e cmd, char* buffer, int len)
     switch (cmd)
     {
     case netcmd_nack:
-        strncat(buffer, len, NETCMD_NACK);
+        strncat(buffer, NETCMD_NACK, len);
         ret = strlen(buffer);
         break;
     case netcmd_ack:
-        strncat(buffer, len, NETCMD_ACK);
+        strncat(buffer, NETCMD_ACK, len);
         ret = strlen(buffer);
         break;
     case netcmd_abort:
-        strncat(buffer, len, NETCMD_ABORT);
+        strncat(buffer, NETCMD_ABORT, len);
         ret = strlen(buffer);
         break;
     case netcmd_create:
-        strncat(buffer, len, NETCMD_CREATE);
+        strncat(buffer, NETCMD_CREATE, len);
         ret = strlen(buffer);
         break;
     case netcmd_append:
-        strncat(buffer, len, NETCMD_APPEND);
+        strncat(buffer, NETCMD_APPEND, len);
         ret = strlen(buffer);
         break;
     case netcmd_close:
-        strncat(buffer, len, NETCMD_CLOSE);
+        strncat(buffer, NETCMD_CLOSE, len);
         ret = strlen(buffer);
         break;
     default:
@@ -50,11 +50,11 @@ int netcmd_to_str(netcmd_e cmd, char* buffer, int len)
 
 int netcmd_str_equal(netcmd_e cmd, char* str_cmd, int len)
 {
-    if(cmd == netcmd_nack)   return strncmp(str_cmd, NETCMD_NACK,   len) ? 1 : 0;
-    if(cmd == netcmd_ack)    return strncmp(str_cmd, NETCMD_ACK,    len) ? 1 : 0;
-    if(cmd == netcmd_abort)  return strncmp(str_cmd, NETCMD_ABORT,  len) ? 1 : 0;
-    if(cmd == netcmd_create) return strncmp(str_cmd, NETCMD_CREATE, len) ? 1 : 0;
-    if(cmd == netcmd_append) return strncmp(str_cmd, NETCMD_APPEND, len) ? 1 : 0;
-    if(cmd == netcmd_close)  return strncmp(str_cmd, NETCMD_CLOSE,  len) ? 1 : 0;
+    if(cmd == netcmd_nack)   return strncmp(str_cmd, NETCMD_NACK,   len)==0 ? 1 : 0;
+    if(cmd == netcmd_ack)    return strncmp(str_cmd, NETCMD_ACK,    len)==0 ? 1 : 0;
+    if(cmd == netcmd_abort)  return strncmp(str_cmd, NETCMD_ABORT,  len)==0 ? 1 : 0;
+    if(cmd == netcmd_create) return strncmp(str_cmd, NETCMD_CREATE, len)==0 ? 1 : 0;
+    if(cmd == netcmd_append) return strncmp(str_cmd, NETCMD_APPEND, len)==0 ? 1 : 0;
+    if(cmd == netcmd_close)  return strncmp(str_cmd, NETCMD_CLOSE,  len)==0 ? 1 : 0;
     return 0;
 }
