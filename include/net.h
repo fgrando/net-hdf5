@@ -74,6 +74,6 @@ int net_server(net_server_config_t *cfg,
 int net_recv(int sock, char *recvbuf, int recvbuflen);
 int net_send(int sock, char *buff, int len);
 
-void net_handle_echo_client(net_client_handler_args_t *args);
+void net_handle_echo_demo(net_client_handler_args_t *args);
 
 #endif

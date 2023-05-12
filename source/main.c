@@ -24,20 +24,25 @@ void idle_function(net_server_config_t *cfg, net_client_handler_args_t *args)
 int main(int argc, char* argv[])
 {
     int alive = 1;
-    cfg_file_t file;
-
-    handler_args_t handler_args;
-    handler_set_file_sink(&handler_args);
 
 #if demo
     net_client_handler_args_t handler_args = {0};
-    net_client_handler_t handler = &net_handle_echo_client;
+    net_client_handler_t handler = &net_handle_echo_demo;
+
+    // allow clients to kill the server
+    handler_args.private_ptr = (void*)&alive;
 #else
+    handler_args_t handler_args;
+    handler_set_file_sink(&handler_args);
+
     net_client_handler_t handler = (net_client_handler_t*)&handler_client;
     net_idle_hander_t    idle = &idle_function;
 #endif
 
+
+
     // parse configuration
+    cfg_file_t file;
     if (cfg_file_load((argc > 1 ? argv[1] : "nethdf5.conf"), &file))
     {
         PRINT_ERR("failed to parse configs");

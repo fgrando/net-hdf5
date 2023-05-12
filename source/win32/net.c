@@ -327,43 +327,35 @@ int net_finish()
     return 0;
 }
 
-// echo server example
-void net_handle_echo_client(net_client_handler_args_t *args)
+
+void net_handle_echo_demo(net_client_handler_args_t *args)
 {
-    PRINT_DBG("sock %d", args->sock);
-    char recvbuf[1000];
+    PRINT_INF("echo demo handling sock %d", args->sock);
+    int *keep_running = (int*)args->private_ptr;
+    
+    char recvbuf[1000] = {0};
     int recvbuflen = 1000;
-
     int ret = 0;
-    // Receive until the peer shuts down the connection
-    do
+    ret = net_recv(args->sock, recvbuf, recvbuflen);
+    if (ret < 1)
     {
-        ret = recv(args->sock, recvbuf, recvbuflen, 0);
-        if (ret > 0)
-        {
-            printf("Bytes received: %d\n", ret);
+        PRINT_ERR("%s","recv socket fail");
+        return;
+    }
 
-            // Echo the buffer back to the sender
-            ret = send(args->sock, recvbuf, ret, 0);
-            if (ret == SOCKET_ERROR)
-            {
-                printf("send failed with error: %d\n", ret);
-                net_print_WsaError();
-                closesocket(args->sock);
-                WSACleanup();
-                break;
-            }
-            printf("Bytes sent: %d\n", ret);
-        }
-        else if (ret == 0)
-            printf("Connection closing...\n");
-        else
-        {
-            printf("recv failed with error: %d\n", ret);
-            net_print_WsaError();
-            closesocket(args->sock);
-            WSACleanup();
-            break;
-        }
-    } while (ret > 0);
+    PRINT_INF("%d >>> %s", args->sock, recvbuf);
+    if (strcmp("abort", recvbuf) == 0)
+    {
+        PRINT_INF("%d sent the abort command", args->sock);
+        *keep_running = 0;
+    }
+
+    PRINT_INF("%d <<< %s", args->sock, recvbuf);
+    ret = net_send(args->sock, recvbuf, ret);
+
+    if (ret < 1)
+    {
+        PRINT_ERR("%s","send socket fail");
+        return;
+    }
 }
