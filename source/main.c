@@ -35,7 +35,7 @@ int main(int argc, char* argv[])
     handler_args_t handler_args;
     handler_set_file_sink(&handler_args);
 
-    net_client_handler_t handler = (net_client_handler_t*)&handler_client;
+    net_client_handler_t handler = (net_client_handler_t)&handler_client;
     net_idle_hander_t    idle = &idle_function;
 #endif
 
