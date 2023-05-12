@@ -1,5 +1,6 @@
 import socket
-
+import time
+chat_bot = True
 
 def client_program():
     host = socket.gethostname()  # as both code is running on same pc
@@ -9,15 +10,26 @@ def client_program():
     client_socket = socket.socket()  # instantiate
     client_socket.connect((host, port))  # connect to the server
 
-    message = input(" -> ")  # take input
+
+    counter = 0
+    if chat_bot:
+        message = 'client hello!'
+    else:
+        message = input(" -> ")  # take input
 
     while message.lower().strip() != 'bye':
+        print('>>> ' + message)
         client_socket.send(message.encode())  # send message
         data = client_socket.recv(1024).decode()  # receive response
 
-        print('Received from server: ' + data)  # show in terminal
-
-        message = input(" -> ")  # again take input
+        print('<<< ' + data)  # show in terminal
+    
+        if chat_bot:
+            time.sleep(2)
+            message = data + f'{counter}'
+            counter = counter + 1
+        else:
+            message = input(" -> ")  # again take input
 
     client_socket.close()  # close the connection
 

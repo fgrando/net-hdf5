@@ -2,11 +2,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "persistance.h"
+#include "cfg_file.h"
 #include "print.h"
 
-#define MAX_CFG_PARAM 10
-#define MAX_CFG_LINE (MAX_CFG_PARAM + 80)
 
 const char SEPARATOR[2] = "=";
 
@@ -24,12 +22,22 @@ int parse_max_clients(char* str)
     return (atoi(token));
 }
 
-int parse_config(char *filepath, persistance_cfg_t *cfg)
+int cfg_file_to_str(cfg_file_t *data, char *buffer, int len)
 {
-    memset(cfg, 0, sizeof(persistance_cfg_t)); // clear all inputs
-    cfg->version = 1; // FIXME
+    return 0;
+}
 
-    char line[MAX_CFG_LINE] = {0};
+int cfg_file_save(char const * const filepath, cfg_file_t const * const data)
+{
+    return -1;
+}
+
+int cfg_file_load(char const * const filepath, cfg_file_t * data)
+{
+    memset(data, 0, sizeof(cfg_file_t)); // clear all inputs
+    data->version = 1; // FIXME
+
+    char line[CFG_FILE_MAX_LINE_CHARS] = {0};
     FILE *cfgfile = 0;
 
     cfgfile = fopen(filepath, "r");
@@ -47,13 +55,13 @@ int parse_config(char *filepath, persistance_cfg_t *cfg)
 
         if (0 == strcmp(param, "listen_port"))
         {
-            cfg->port = parse_listen_port(line);
-            PRINT_INF("%s...%d", param, cfg->port);
+            data->port = parse_listen_port(line);
+            PRINT_INF("%s...%d", param, data->port);
         }
         else if (0 == strcmp(param, "max_clients"))
         {
-            cfg->max_clients = parse_max_clients(line);
-            PRINT_INF("%s...%d", param, cfg->max_clients);
+            data->max_clients = parse_max_clients(line);
+            PRINT_INF("%s...%d", param, data->max_clients);
         }
         else
         {

@@ -3,6 +3,7 @@
 #include "handler.h"
 #include "sink.h"
 #include "net.h"
+#include "timestamp.h"
 
 void handler_set_file_sink(handler_args_t *args)
 {
@@ -28,7 +29,7 @@ int parse_recv(char* buffer, int len);
 void handler_client(handler_args_t *args)
 {
     PRINT_DBG("handler %s sock %d", args->name, args->net.sock);
-    char recvbuf[1000];
+    char recvbuf[1000] = {0};
     int recvbuflen = 1000;
 
     args->net.status = NET_SOCK_OK;
@@ -40,20 +41,23 @@ void handler_client(handler_args_t *args)
         PRINT_INF("%s","socket fail");
         return;
     }
+    PRINT_DBG("%d >>> %s", args->net.sock, recvbuf);
     if (parse_recv(recvbuf, ret))
     {
         PRINT_INF("%s","socket close");
-        //args->net.status = NET_SOCK_CLOSED;
+        args->net.status = NET_SOCK_CLOSED;
         return;
     }
 
-    int bytes = net_send(args->net.sock, recvbuf, ret);
-    printf("Bytes sent: %d\n", bytes);
+    memset(recvbuf, 0, sizeof(recvbuf));
+    timestamp(recvbuf, sizeof(recvbuf), 0);
+    PRINT_DBG("%d <<< %s", args->net.sock, recvbuf);
+    ret = net_send(args->net.sock, recvbuf, ret);
 
-    if (bytes < 1)
+    if (ret < 1)
     {
-        //args->net.status = NET_SOCK_FAIL;
-        PRINT_INF("%s","socket fail");
+        args->net.status = NET_SOCK_FAIL;
+        PRINT_ERR("%s","socket fail");
         return;
     }
 }
@@ -62,9 +66,7 @@ int parse_recv(char* buffer, int len)
 {
     if (len < 1)
     {
-        printf("Connection closing...\n");
         return 1;
     }
-    printf("Bytes received: %d %s\n", len, buffer);
     return 0;
 }

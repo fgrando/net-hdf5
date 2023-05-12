@@ -121,22 +121,36 @@ int net_open(int port)
     return sock;
 }
 
-// local function
-// close the socket (if open) and free its position
-int net_close_client(net_client_sock_t *clients, int pos)
+int is_invalid(net_client_t *client)
 {
-    net_client_sock_t sock = clients[pos];
-    if (sock == NET_INVALID_SOCK)
+    return (client->sock == NET_INVALID_SOCK) ? 1 : 0;
+}
+
+void clear_slot(net_client_t *client)
+{
+    memset(client, 0, sizeof(net_client_t));
+    client->sock = NET_INVALID_SOCK;
+}
+
+int close_client(net_client_t *clients, int pos)
+{
+    if (is_invalid(&clients[pos]))
     {
-        // already closed
-        return 0;
+        return 0; // already closed
     }
 
-    PRINT_DBG("close client %d sock %d", pos, sock);
-    int ret = net_close(sock);
-    // free slot
-    clients[pos] = NET_INVALID_SOCK;
+    PRINT_DBG("close client %d sock %d ip %s", pos, clients[pos].sock, clients[pos].ip);
+    int ret = net_close(clients[pos].sock);
+    clear_slot(&clients[pos]);
     return ret;
+}
+
+void fill_ip_from_sock(net_client_t *client)
+{
+    struct sockaddr_in inaddr;
+    socklen_t inaddr_size = sizeof(struct sockaddr_in);
+    int res = getpeername(client->sock, (struct sockaddr *)&inaddr, &inaddr_size);
+    inet_ntop(AF_INET, &inaddr, client->ip, sizeof(client->ip));
 }
 
 int net_server(net_server_config_t          *cfg,
@@ -146,7 +160,6 @@ int net_server(net_server_config_t          *cfg,
 {
     int ret = 0; // return code
     SOCKET accept_sock = cfg->sock_server;
-    FD_SET fdSet; // set of the sockets to monitore
 
     struct timeval timeout;
     timeout.tv_sec = 0;
@@ -154,12 +167,17 @@ int net_server(net_server_config_t          *cfg,
 
     // display cfgs
     PRINT_DBG("server socket is %d", accept_sock);
-    PRINT_DBG("server keep running at %p", cfg->run_server_ptr);
-    PRINT_DBG("max clients %d", cfg->sock_clients_max);
+    PRINT_DBG("serve flag memory %p", cfg->serve);
     PRINT_DBG("idle function runs every %dus", timeout.tv_usec);
+  
+    if (cfg->clients_max+1 > 1024)
+    {
+        PRINT_ERR("maximum number of clients exceeded");
+        return 1;
+    }
 
-    ret = listen(accept_sock, cfg->sock_clients_max);
-    if (ret == SOCKET_ERROR)
+    ret = listen(accept_sock, cfg->clients_max);
+    if (ret < 0)
     {
         PRINT_ERR("listen failed with error: %ld\n", ret);
         net_print_WsaError();
@@ -169,73 +187,79 @@ int net_server(net_server_config_t          *cfg,
     }
 
     // clear client slots
-    for (int i = 0; i < cfg->sock_clients_max; i++)
+    for (int i = 0; i < cfg->clients_max; i++)
     {
-        cfg->sock_clients[i] = NET_INVALID_SOCK;
+        clear_slot(&cfg->clients[i]);
     }
 
+
     PRINT_DBG("starting main loop and wait for clients");
-    while (*cfg->run_server_ptr)
+    FD_SET fdSet; // set of the sockets to monitore
+    while (*cfg->serve != 0)
     {
         int run_idle = 1;
         FD_ZERO(&fdSet);
         FD_SET(accept_sock, &fdSet);
 
         // add all active clients back to the reading set
-        for (int i = 0; i < cfg->sock_clients_max; i++)
+        for (int i = 0; i < cfg->clients_max; i++)
         {
-            if (cfg->sock_clients[i] != NET_INVALID_SOCK)
+            if (is_invalid(&cfg->clients[i]) == 0)
             {
-                FD_SET(cfg->sock_clients[i], &fdSet);
+                FD_SET(cfg->clients[i].sock, &fdSet);
             }
         }
 
         ret = select(0, &fdSet, NULL, NULL, &timeout);
-        if (ret == SOCKET_ERROR)
+        if (ret < 0)
         {
             PRINT_ERR("select error: %ld\n", ret);
-            net_print_WsaError();
-            return 1;
+            break;
         }
-
 
         if (FD_ISSET(accept_sock, &fdSet))
         {
-            // we have a new joiner. Find a place.
-            for (int i = 0; i < cfg->sock_clients_max; i++)
+            run_idle = 0; // not idle in this cycle
+            int discard = 1;
+            // we have a new joiner. Find a place otherwise discard
+            for (int i = 0; i < cfg->clients_max; i++)
             {
-                if (cfg->sock_clients[i] == NET_INVALID_SOCK)
+                if (is_invalid(&cfg->clients[i]))
                 {
-                    run_idle = 0; // this cycle we were busy
-                    struct sockaddr addr = {0};
-                    int address_len = sizeof(addr);
-                    cfg->sock_clients[i] = accept(accept_sock, &addr, &address_len);
-                    PRINT_DBG("new client (%d) ip %s", i, addr.sa_data);
+                    cfg->clients[i].sock = accept(accept_sock, NULL, NULL);
+                    fill_ip_from_sock(&cfg->clients[i]);
+                    PRINT_DBG("new client (%d) sock %d ip %s", i, cfg->clients[i].sock, cfg->clients[i].ip);
+                    discard = 0;
                     break;
                 }
+            }
+            if (discard)
+            {
+                net_client_sock_t flush = accept(accept_sock, NULL, NULL);
+                net_close(flush);
             }
         }
 
         // test every socket to see if we have something to handle
-        for (int i = 0; i < cfg->sock_clients_max; i++)
+        for (int i = 0; i < cfg->clients_max; i++)
         {
             // skip unused places
-            if (cfg->sock_clients[i] == NET_INVALID_SOCK)
+            if (is_invalid(&cfg->clients[i]))
             {
                 continue;
             }
-            if (FD_ISSET(cfg->sock_clients[i], &fdSet))
+            if (FD_ISSET(cfg->clients[i].sock, &fdSet))
             {
                 run_idle = 0; // this cycle we were busy
                 args->status = NET_SOCK_OK;
-                args->sock = cfg->sock_clients[i];
+                args->sock = cfg->clients[i].sock;
 
-                PRINT_DBG("handle client %d in socket %d", i, args->sock);
+                PRINT_DBG("\n\nhandle client %d in socket %d", i, args->sock);
                 (*fptr_handler)(args);
                 PRINT_DBG("handle client %d in socket %d status %d", i, args->sock, args->status);
                 if (args->status != NET_SOCK_OK)
                 {
-                    net_close_client(cfg->sock_clients[i], i);
+                    close_client(cfg->clients, i);
                 }
             }
         }
@@ -248,9 +272,9 @@ int net_server(net_server_config_t          *cfg,
 
     ret = 0;
     // close everyone
-    for (int i = 0; i < cfg->sock_clients_max; i++)
+    for (int i = 0; i < cfg->clients_max; i++)
     {
-        ret +=net_close_client(cfg->sock_clients, i);
+        ret +=close_client(cfg->clients, i);
     }
 
     return ret;
@@ -258,7 +282,6 @@ int net_server(net_server_config_t          *cfg,
 
 int net_recv(int sock, char *recvbuf, int recvbuflen)
 {
-    PRINT_DBG("recv sock %d", sock);
     int bytes = recv(sock, recvbuf, recvbuflen, 0);
     if (bytes < 0)
     {
@@ -270,7 +293,6 @@ int net_recv(int sock, char *recvbuf, int recvbuflen)
 
 int net_send(int sock, char *buff, int len)
 {
-    PRINT_DBG("send sock %d", sock);
     int bytes = send(sock, buff, len, 0);
     if (bytes < 0)
     {
