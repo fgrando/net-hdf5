@@ -4,26 +4,28 @@
 #include "net.h"
 #include "sink.h"
 
-#define HANDLER_MAX_PATH_NAME 254
+
 
 typedef struct
 {
-    char filepath[HANDLER_MAX_PATH_NAME];
-    char last_cmd[HANDLER_MAX_PATH_NAME];
-    char last_result[HANDLER_MAX_PATH_NAME];
+    char filepath[2];
+    char last_cmd[2];
+    char last_result[2];
 } fd_session_t;
+
 
 typedef struct
 {
     char name[20];
     sink_api_t sink;
     int *keep_running;  // abort program
-    fd_session_t session[10];      // handle up to 10 files
-    int session_max;
 } handler_args_t;
 
 void handler_client(net_client_handler_args_t *args);
 void handler_set_file_sink(handler_args_t *args);
 void handler_set_hdf5_sink(handler_args_t *args);
+
+int create_session(handler_args_t* args);
+int close_session(handler_args_t* args);
 
 #endif

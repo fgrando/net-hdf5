@@ -8,6 +8,7 @@ typedef struct {
     int version;
     int port;
     int max_clients;
+    int write_max_count; // number of writes before file sync
 } cfg_file_t;
 
 int cfg_file_save(char const * const filepath, cfg_file_t const * const data);

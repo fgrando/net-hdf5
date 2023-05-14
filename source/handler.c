@@ -1,4 +1,5 @@
 #include <string.h>
+#include <stdlib.h>
 
 #include "handler.h"
 #include "sink.h"
@@ -6,10 +7,12 @@
 #include "timestamp.h"
 #include "netcmd.h"
 
-#define SEPARATOR " "
+#define SEPARATOR ' '
+#define HANDLER_MAX_MESSAGE_LEN_BYTES 3000
 
 void handler_set_file_sink(handler_args_t *args)
 {
+    memset(&args->sink, 0, sizeof(args->sink));
     args->sink.open = file_open;
     args->sink.close = file_close;
     args->sink.append = file_append;
@@ -17,9 +20,9 @@ void handler_set_file_sink(handler_args_t *args)
     strncat(args->name, "to-file", sizeof(args->name)-1);
 }
 
-
 void handler_set_hdf5_sink(handler_args_t *args)
 {
+    memset(&args->sink, 0, sizeof(args->sink));
     args->sink.open = hdf5_open;
     args->sink.close = hdf5_close;
     args->sink.append = hdf5_append;
@@ -27,78 +30,143 @@ void handler_set_hdf5_sink(handler_args_t *args)
     strncat(args->name, "to-hdf5", sizeof(args->name)-1);
 }
 
-int parse_recv(char* buffer, int len, net_client_handler_args_t *conn, handler_args_t* data);
-
-void handler_client(net_client_handler_args_t *args)
+int get_argument(char* src, int begin, char*dst, int max)
 {
-    handler_args_t* private = (handler_args_t*)args->private_ptr;
+    memset(dst, 0, max);
+    int quotes = 0; // spaces into a quoted string are not separators
 
-    PRINT_DBG("handler %s sock %d", private->name, args->sock);
-    char recvbuf[1000] = {0};
-    int recvbuflen = 1000;
-
-    args->status = NET_SOCK_OK;
-    int ret = 0;
-    ret = net_recv(args->sock, recvbuf, recvbuflen);
-    if (ret < 1)
+    int src_len = strlen(src);
+    if (begin >= src_len)
     {
-        args->status = NET_SOCK_FAIL;
-        PRINT_INF("%s","socket fail");
-        return;
+        return -1;
     }
-    PRINT_DBG("%d >>> %s", args->sock, recvbuf);
-    if (parse_recv(recvbuf, ret, args, private))
+    
+    // ignore trailling spaces
+    while(src[begin] == SEPARATOR)
     {
-        // command is bad. reply nack
-        memset(recvbuf, 0, sizeof(recvbuf));    
-        ret = netcmd_to_str(netcmd_nack, recvbuf, sizeof(recvbuf));
-    }
-    else
-    {
-        // command is good. reply ack
-        memset(recvbuf, 0, sizeof(recvbuf));    
-        ret = netcmd_to_str(netcmd_ack, recvbuf, sizeof(recvbuf));
+        begin++;
     }
 
-    PRINT_DBG("%d <<< %s", args->sock, recvbuf);
-    ret = net_send(args->sock, recvbuf, ret);    
-    if (ret < 1)
+    // if it starts with quotes, move to next char but active quote marks
+    if (src[begin] == '\"')
     {
-        args->status = NET_SOCK_FAIL;
-        PRINT_ERR("%s","socket fail");
-        return;
+        begin++;
+        quotes = 1;
     }
-}
 
-int number_of_arguments(char* str, int len)
-{
-    int found = 0;
-    int quotes = 0;
-    for(int i=0; i < len; i++)
+    int sz = 0;
+    int i = begin;
+    for(;i < src_len; i++)
     {
-        if (str[i] == 0)
+        if (!quotes && src[i] == SEPARATOR)
         {
+            sz = i - begin;
+            i++; // skip blank char next time
             break;
         }
 
-        if (str[i] != '\"')
+        if (src[i] == '\"')
         {
-            quotes = !quotes;
+            quotes = 0;
+            sz = i - begin;
+            i++; // skip quote char next time
+            break;
         }
 
-        if (!quotes && str[i] == ' ')
+        if (i+1 == src_len)
         {
-            found++;
+            i++; // skip quote char next time
+            sz = i - begin;
+            break;
         }
     }
-    return found;
+
+    if (sz > max)
+    {
+        PRINT_ERR("Not enough space to save substring (req %d, max %d)", sz, max);
+        return -1;
+    }
+    strncat(dst, &src[begin], sz);
+
+    return i;
+}
+
+int handle_create(char* buffer, int len, net_client_handler_args_t *conn, handler_args_t* data)
+{
+    char filepath[HANDLER_MAX_PATH_NAME] = {0};
+    char metadata[HANDLER_MAX_PATH_NAME] = {0};
+    char arg[HANDLER_MAX_PATH_NAME] = {0};
+    int idx = 0;
+
+
+    // create
+    idx = get_argument(buffer, idx, arg, sizeof(arg));
+    if(idx < 0 || netcmd_str_equal(netcmd_create, arg) == 0)
+    {
+        return 1;
+    }
+    PRINT_DBG("cmd: %s", arg);
+
+    // filepath
+    idx = get_argument(buffer, idx, arg, sizeof(arg));
+    if(idx < 0)
+    {
+        return 1;
+    }
+    strncat(filepath, arg, sizeof(filepath)-1);
+    PRINT_DBG("filepath: %s", arg);
+
+    // metadata
+    idx = get_argument(buffer, idx, arg, sizeof(arg));
+    if(idx < 0)
+    {
+        return 1;
+    }
+    strncat(metadata, arg, sizeof(metadata)-1);
+    PRINT_DBG("meta: %s", arg);
+
+    return data->sink.open(&data->sink.session, filepath);
+}
+
+int handle_append(char* buffer, int len, net_client_handler_args_t *conn, handler_args_t* data)
+{
+    char label[HANDLER_MAX_PATH_NAME] = {0};
+    float time;
+    char arg[HANDLER_MAX_PATH_NAME] = {0};
+    int idx = 0;
+
+    // append
+    idx = get_argument(buffer, idx, arg, sizeof(arg));
+    if(idx < 0 || netcmd_str_equal(netcmd_append, arg) == 0)
+    {
+        return 1;
+    }
+    PRINT_DBG("cmd: %s", arg);
+
+    // label
+    idx = get_argument(buffer, idx, arg, sizeof(arg));
+    if(idx < 0)
+    {
+        return 1;
+    }
+    strncat(label, arg, sizeof(label)-1);
+    PRINT_DBG("label: %s", arg);
+
+    // time
+    idx = get_argument(buffer, idx, arg, sizeof(arg));
+    if(idx < 0)
+    {
+        return 1;
+    }
+    time = atof(arg);
+    PRINT_DBG("time: %f %s", time, arg);
+
+    return data->sink.append(&data->sink.session, label, time, &buffer[idx], len-idx);
 }
 
 int parse_recv(char* buffer, int len, net_client_handler_args_t *conn, handler_args_t* data)
 {
-    char *cmd = strtok(buffer, SEPARATOR);
-
-    if(netcmd_str_equal(netcmd_abort, cmd, strlen(cmd)))
+    if(netcmd_str_equal(netcmd_abort, buffer))
     {
         PRINT_INF("Remote shutdown activated");
         *data->keep_running = 0;
@@ -106,117 +174,68 @@ int parse_recv(char* buffer, int len, net_client_handler_args_t *conn, handler_a
         return 0;
     }
 
-    if(netcmd_str_equal(netcmd_create, cmd, strlen(cmd)))
+    if(netcmd_str_equal(netcmd_create, buffer))
     {
-        // create path/for/file metadata1,metadata2,metadata3) */
-        if (number_of_arguments(buffer, len) < 3)
-        {
-            PRINT_ERR("command is incomplete [%s]", buffer);
-            return 1;
-        }
-
-        char* token = cmd;
-        char *path = strtok(NULL, SEPARATOR);
-        char *metadata = strtok(NULL, SEPARATOR);
-        PRINT_DBG("[%s][%s][%s]", cmd, path, metadata);
-
-        if(strlen(path) > sizeof(data->session[0].filepath)-1 /*EOF*/)
-        {
-            PRINT_ERR("path [%s] is too big", path);
-            return 1;
-        }
-
-        // search to see if this session already exists
-        for(int i = 0; i < data->session_max; i++)
-        {
-            if (strncmp(path, data->session[i].filepath, sizeof(data->session[i].filepath)) == 0)
-            {
-                PRINT_ERR("path [%s] is already exists", path);
-                return 1;
-            }
-        }
-
-        // search for a empty spot
-        for(int i = 0; i < data->session_max; i++)
-        {
-            if (strlen(data->session[i].filepath) == 0)
-            {
-                strncat(data->session[i].filepath, path, sizeof(data->session[i].filepath)-1);
-                // open the fd
-                return 0;
-            }
-        }
-
-        return 1;
+        return handle_create(buffer, len, conn, data);
     }
 
-    if(netcmd_str_equal(netcmd_append, cmd, strlen(cmd)))
+    if(netcmd_str_equal(netcmd_append, buffer))
     {
-        /* append path/for/file label timestamp buffer_len buffer */
-        char* token = cmd;
-        char *path = strtok(NULL, SEPARATOR);
-        char *label = strtok(NULL, SEPARATOR);
-        PRINT_DBG("[%s][%s][%s]", cmd, path, label);
-
-        if(strlen(path) > sizeof(data->session[0].filepath)-1 /*EOF*/)
-        {
-            PRINT_ERR("path [%s] is too big", path);
-            return 1;
-        }
-
-        // search to see if this session already exists
-        int index = -1;
-        for(int i = 0; i < data->session_max; i++)
-        {
-            if (strncmp(path, data->session[i].filepath, sizeof(data->session[i].filepath)) == 0)
-            {
-                index = i;
-                break;
-            }
-        }
-
-        if (index < 0)
-        {
-            PRINT_ERR("path [%s] is not open", path);
-            return 1;   
-        }
-
-        // write to the file 
-
-        return 0;
+        return handle_append(buffer, len, conn, data);
     }
 
-    if(netcmd_str_equal(netcmd_close, cmd, strlen(cmd)))
+    if(netcmd_str_equal(netcmd_close, buffer))
     {
-        // create path/for/file */
-        char* token = cmd;
-        char *path = strtok(NULL, SEPARATOR);
-        PRINT_DBG("[%s][%s]", cmd, path);
-
-        if(strlen(path) > sizeof(data->session[0].filepath)-1 /*EOF*/)
-        {
-            PRINT_ERR("path [%s] is too big", path);
-            return 1;
-        }
-
-        // search to see if this session already exists
-        for(int i = 0; i < data->session_max; i++)
-        {
-            if (strncmp(path, data->session[i].filepath, sizeof(data->session[i].filepath)) == 0)
-            {
-                PRINT_INF("closing path [%s]", path);
-                conn->status = NET_SOCK_CLOSED;
-                return 0;
-            }
-        }
-    }
-
-    if(netcmd_str_equal(netcmd_exit, cmd, strlen(cmd)))
-    {
-        PRINT_INF("closing all open files");
-        conn->status = NET_SOCK_CLOSED;
-        return 0;
+        return data->sink.close(&data->sink.session);
     }
 
     return 1;
+}
+
+void shutdown_and_fail(net_client_handler_args_t *conn, handler_args_t* data)
+{
+    conn->status = NET_SOCK_FAIL;
+    data->sink.close(&data->sink.session);
+}
+
+void handler_client(net_client_handler_args_t *args)
+{
+    handler_args_t* private = (handler_args_t*)args->private_ptr;
+
+    PRINT_DBG("handler %s sock %d", private->name, args->sock);
+    char buffer[HANDLER_MAX_MESSAGE_LEN_BYTES] = {0};
+    int ret = 0;
+
+    args->status = NET_SOCK_OK; // default is success
+
+    ret = net_recv(args->sock, buffer, sizeof(buffer));
+    if (ret < 1)
+    {
+        PRINT_INF("%s","socket fail");
+        shutdown_and_fail(args, private);
+        return;
+    }
+    PRINT_DBG("%d >>> %s", args->sock, buffer);
+    
+    if (parse_recv(buffer, ret, args, private))
+    {
+        // command is bad. reply nack
+        memset(buffer, 0, sizeof(buffer));    
+        ret = netcmd_to_str(netcmd_nack, buffer, sizeof(buffer));
+    }
+    else
+    {
+        // command is good. reply ack
+        memset(buffer, 0, sizeof(buffer));    
+        ret = netcmd_to_str(netcmd_ack, buffer, sizeof(buffer));
+    }
+
+    ret = net_send(args->sock, buffer, ret);    
+    if (ret < 1)
+    {
+        PRINT_INF("%s","socket fail");
+        shutdown_and_fail(args, private);
+        return;
+    }
+    PRINT_DBG("%d <<< %s", args->sock, buffer);
 }

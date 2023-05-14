@@ -23,6 +23,8 @@ void idle_function(net_server_config_t *cfg, net_client_handler_args_t *args)
 #define demo 0
 int main(int argc, char* argv[])
 {
+    PRINT_SET_LEVEL(0);
+
     int alive = 1;
 
     net_client_handler_args_t handler_args = {0};
@@ -34,7 +36,6 @@ int main(int argc, char* argv[])
 #else
     handler_args_t custom_args;
     handler_set_file_sink(&custom_args);
-    custom_args.session_max = 10;
     custom_args.keep_running = &alive; // allow clients to kill this server
     // Send our special data structure. Our handler will know how to access the data
     handler_args.private_ptr = (void*)&custom_args;
@@ -52,6 +53,8 @@ int main(int argc, char* argv[])
         PRINT_ERR("failed to parse configs");
         return 1;
     }
+    custom_args.sink.session.write_max_count = file.write_max_count;
+
     net_client_t *client_sockets =
         (net_client_t*) malloc(sizeof(net_client_t) * file.max_clients); // max clients
 
@@ -60,7 +63,7 @@ int main(int argc, char* argv[])
     server_configs.serve = &alive;
     server_configs.clients = client_sockets;
     server_configs.clients_max = file.max_clients;
-    server_configs.timeout_us = (1000)*500; // miliseconds
+    server_configs.timeout_us = (1000)*5000; // miliseconds
 
     // spin server and handle clients
     server_configs.sock_server = net_open(file.port);

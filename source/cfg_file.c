@@ -22,6 +22,13 @@ int parse_max_clients(char* str)
     return (atoi(token));
 }
 
+int parse_write_max_count(char* str)
+{
+    char* token = str;
+    token = strtok(NULL, SEPARATOR);
+    return (atoi(token));
+}
+
 int cfg_file_to_str(cfg_file_t *data, char *buffer, int len)
 {
     return 0;
@@ -62,6 +69,11 @@ int cfg_file_load(char const * const filepath, cfg_file_t * data)
         {
             data->max_clients = parse_max_clients(line);
             PRINT_INF("%s...%d", param, data->max_clients);
+        }
+        else if (0 == strcmp(param, "write_max_count"))
+        {
+            data->write_max_count = parse_write_max_count(line);
+            PRINT_INF("%s...%d", param, data->write_max_count);
         }
         else
         {

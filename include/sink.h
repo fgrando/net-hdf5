@@ -3,13 +3,18 @@
 
 #include <stdio.h>
 
+#define HANDLER_MAX_PATH_NAME 255
+
 typedef struct {
+    char filepath[HANDLER_MAX_PATH_NAME];
     FILE *fp;
+    int write_count;
+    int write_max_count;
 } session_t;
 
-typedef void (*sink_open_t)(session_t *s, char* path);
-typedef void (*sink_append_t)(session_t *s, char *label, float time, char* buffer, int len);
-typedef void (*sink_close_t)(session_t *s);
+typedef int (*sink_open_t)(session_t *s, char* path);
+typedef int (*sink_append_t)(session_t *s, char *label, float time, char* buffer, int len);
+typedef int (*sink_close_t)(session_t *s);
 
 typedef struct {
     sink_open_t open;
@@ -18,12 +23,12 @@ typedef struct {
     session_t session;
 } sink_api_t;
 
-extern void file_open(session_t *s, char* path);
-extern void file_append(session_t *s, char *label, float time, char* buffer, int len);
-extern void file_close(session_t *s);
+extern int file_open(session_t *s, char* path);
+extern int file_append(session_t *s, char *label, float time, char* buffer, int len);
+extern int file_close(session_t *s);
 
-extern void hdf5_open(session_t *s, char* path);
-extern void hdf5_append(session_t *s, char *label, float time, char* buffer, int len);
-extern void hdf5_close(session_t *s);
+extern int hdf5_open(session_t *s, char* path);
+extern int hdf5_append(session_t *s, char *label, float time, char* buffer, int len);
+extern int hdf5_close(session_t *s);
 
 #endif
