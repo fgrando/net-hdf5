@@ -34,6 +34,7 @@ int main(int argc, char* argv[])
 #else
     handler_args_t custom_args;
     handler_set_file_sink(&custom_args);
+    custom_args.session_max = 10;
     custom_args.keep_running = &alive; // allow clients to kill this server
     // Send our special data structure. Our handler will know how to access the data
     handler_args.private_ptr = (void*)&custom_args;

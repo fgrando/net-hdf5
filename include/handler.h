@@ -19,6 +19,7 @@ typedef struct
     sink_api_t sink;
     int *keep_running;  // abort program
     fd_session_t session[10];      // handle up to 10 files
+    int session_max;
 } handler_args_t;
 
 void handler_client(net_client_handler_args_t *args);

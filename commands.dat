@@ -4,3 +4,4 @@ netcmd_abort,    /* abort server execution */
 netcmd_create,   /* create the file dump   eg: create path/for/file metadata1,metadata2,metadata3) */
 netcmd_append,   /* append data to file    eg: append path/for/file label timestamp buffer_len buffer */
 netcmd_close,    /* close the file         eg: close  path/for/file */
+netcmd_exit,    /* client wants to disconnect and close all open files eg: exit */

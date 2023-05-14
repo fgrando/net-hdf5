@@ -8,6 +8,7 @@
 #define NETCMD_CREATE "create"
 #define NETCMD_APPEND "append"
 #define NETCMD_CLOSE  "close"
+#define NETCMD_EXIT   "exit"
 
 
 int netcmd_to_str(netcmd_e cmd, char* buffer, int len)
@@ -40,6 +41,10 @@ int netcmd_to_str(netcmd_e cmd, char* buffer, int len)
         strncat(buffer, NETCMD_CLOSE, len);
         ret = strlen(buffer);
         break;
+    case netcmd_exit:
+        strncat(buffer, NETCMD_EXIT, len);
+        ret = strlen(buffer);
+        break;
     default:
         PRINT_ERR("command %d is unknown", cmd);
         break;
@@ -56,5 +61,6 @@ int netcmd_str_equal(netcmd_e cmd, char* str_cmd, int len)
     if(cmd == netcmd_create) return strncmp(str_cmd, NETCMD_CREATE, len)==0 ? 1 : 0;
     if(cmd == netcmd_append) return strncmp(str_cmd, NETCMD_APPEND, len)==0 ? 1 : 0;
     if(cmd == netcmd_close)  return strncmp(str_cmd, NETCMD_CLOSE,  len)==0 ? 1 : 0;
+    if(cmd == netcmd_exit)   return strncmp(str_cmd, NETCMD_EXIT ,  len)==0 ? 1 : 0;
     return 0;
 }

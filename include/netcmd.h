@@ -3,6 +3,7 @@
 
 typedef enum{
 #include "../commands.dat"
+netcmd_total_elements
 } netcmd_e;
 
 int netcmd_to_str(netcmd_e cmd, char* buffer, int len);
