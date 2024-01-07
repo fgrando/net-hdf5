@@ -1,0 +1,7 @@
+src	name	bytepos	bitpos	numbits	type	resolution	opermax opermin
+samsung	header	0	0	16	U16	-	-	-	-
+samsung	blue	1	0	1	U1	-	-	-	-
+samsung	red	1	1	1	U1	-	-	-	-
+samsung	green	1	2	1	U1	-	-	-	-
+samsung	magic	2	0	32	U32	-	-	10	5000
+
