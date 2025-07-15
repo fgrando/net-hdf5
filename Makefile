@@ -5,7 +5,6 @@ ifeq ($(OS),Windows_NT)
 BIN_EXTENSION=exe
 CC=gcc
 LFLAGS :=
-LFLAGS += -lWs2_32
 else
 CC=gcc
 BIN_EXTENSION=elf
@@ -14,21 +13,15 @@ endif
 
 
 CFLAGS :=
-# CFLAGS += -Wall
-# CFLAGS += -Wpedantic
-# CFLAGS += -Werror
+CFLAGS += -Wall
+CFLAGS += -Wpedantic
+CFLAGS += -Werror
 CFLAGS += -g
 
 DIRS := ./include
 DIRS += ./third-party/HDF5/include
 DIRS += ./source
-DIRS += ./source/sink
-
-ifeq ($(OS),Windows_NT)
-DIRS += ./source/win32
-else
-DIRS += ./source/linux
-endif
+DIRS += ./source/utils
 
 BUILD_DIR := build
 
@@ -60,6 +53,9 @@ $(TARGET_EXEC): $(OBJS)
 clean:
 	rm -f $(BUILD_DIR)/*.*
 	rm -f *.$(BIN_EXTENSION)
+
+format:
+	clang-format -i $(C_FILES) $(foreach dir, ./include, $(wildcard $(dir)/*.h))
 
 all: $(TARGET_EXEC)
 
