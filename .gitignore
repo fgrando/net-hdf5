@@ -1,0 +1,5 @@
+*.exe
+*.dll
+build/
+*.h5
+.vscode/

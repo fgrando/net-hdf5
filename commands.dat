@@ -1,6 +1,0 @@
-netcmd_nack,     /* not ok, no action */
-netcmd_ack,      /* ok, no action */
-netcmd_abort,    /* abort server execution */
-netcmd_create,   /* create the file dump   eg: create path/for/file metadata1,metadata2,metadata3) */
-netcmd_append,   /* append data to file    eg: append label timestamp buffer_len buffer */
-netcmd_close,    /* close the file         eg: close */

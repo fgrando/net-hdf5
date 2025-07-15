@@ -1,89 +1,75 @@
+#include "hdf5.h"
 #include <stdio.h>
-#include <stdlib.h> // malloc
+#include <stdlib.h>
 
-#include "net.h"
-#include "sink.h"
-#include "print.h"
-#include "handler.h"
-#include "cfg_file.h"
-#include "timestamp.h"
+#define FILE_NAME "example.h5"
+#define NUM_GROUPS 5
+#define NUM_DATASETS 2
 
-void idle_function(net_server_config_t *cfg, net_client_handler_args_t *args)
-{
-    static int countdown = 0;
-    char now[80] = {0};
-    timestamp(now, sizeof(now), 0);
-    //PRINT_DBG("%s: %d (serve %d)", now, countdown, *(cfg->serve));
-    //PRINT_DBG("%c", '.');
-    if (countdown > 3000)
-        *(cfg->serve) = 0;
-    countdown++;
+void write_group(hid_t file_id, int group_idx) {
+    char group_name[32];
+    sprintf(group_name, "/Group%d", group_idx + 1);
+
+    // Create group
+    hid_t group_id = H5Gcreate(file_id, group_name, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+
+    // --- Dataset 1: Float array
+    float float_data[] = {1.1f, 2.2f, 3.3f};
+    hsize_t dims1[1] = {3};
+
+    hid_t space1 = H5Screate_simple(1, dims1, NULL);
+    hid_t dset1 = H5Dcreate(group_id, "FloatData", H5T_NATIVE_FLOAT, space1, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    H5Dwrite(dset1, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, float_data);
+    H5Dclose(dset1);
+    H5Sclose(space1);
+
+    // --- Dataset 2: String array (variable length)
+    const char *str_data[] = {"Hello", "HDF5", "Group"};
+    hsize_t dims2[1] = {3};
+
+    hid_t str_type = H5Tcopy(H5T_C_S1);
+    H5Tset_size(str_type, H5T_VARIABLE);  // variable-length strings
+    hid_t space2 = H5Screate_simple(1, dims2, NULL);
+    hid_t dset2 = H5Dcreate(group_id, "StringData", str_type, space2, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    H5Dwrite(dset2, str_type, H5S_ALL, H5S_ALL, H5P_DEFAULT, str_data);
+    H5Dclose(dset2);
+    H5Sclose(space2);
+    H5Tclose(str_type);
+
+
+    // Dataset 3: Binary buffer (e.g., 3 elements, each 25 bytes)
+    const int e = 3;
+    const int buf_size = 25;
+    uint8_t binary_data[e][buf_size];
+
+    // Fill with sample values
+    for (int i = 0; i < e; i++)
+        for (int j = 0; j < buf_size; j++)
+            binary_data[i][j] = (uint8_t)(i * 10 + j);
+
+    hsize_t dims3[2] = {e, buf_size};
+    hid_t space3 = H5Screate_simple(2, dims3, NULL);
+
+    hid_t dset3 = H5Dcreate(group_id, "BinaryData", H5T_NATIVE_UINT8, space3,
+                            H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    H5Dwrite(dset3, H5T_NATIVE_UINT8, H5S_ALL, H5S_ALL, H5P_DEFAULT, binary_data);
+    H5Dclose(dset3);
+    H5Sclose(space3);
+
+    H5Gclose(group_id);
 }
 
-#define demo 0
-int main(int argc, char* argv[])
-{
-    PRINT_SET_LEVEL(0);
+int main() {
+    // Create a new HDF5 file
+    hid_t file_id = H5Fcreate(FILE_NAME, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
 
-    int alive = 1;
-
-    net_client_handler_args_t handler_args = {0};
-#if demo
-    net_client_handler_t handler = &net_handle_echo_demo;
-
-    // allow clients to kill the server
-    handler_args.private_ptr = (void*)&alive;
-#else
-    handler_args_t custom_args;
-    handler_set_file_sink(&custom_args);
-    custom_args.keep_running = &alive; // allow clients to kill this server
-    // Send our special data structure. Our handler will know how to access the data
-    handler_args.private_ptr = (void*)&custom_args;
-
-    net_client_handler_t handler = (net_client_handler_t)&handler_client;
-    net_idle_hander_t    idle = &idle_function;
-#endif
-
-
-
-    // parse configuration
-    cfg_file_t file;
-    if (cfg_file_load((argc > 1 ? argv[1] : "nethdf5.conf"), &file))
-    {
-        PRINT_ERR("failed to parse configs");
-        return 1;
+    // Create multiple groups and datasets
+    for (int i = 0; i < NUM_GROUPS; i++) {
+        write_group(file_id, i);
     }
-    custom_args.sink.session.write_max_count = file.write_max_count;
 
-    net_client_t *client_sockets =
-        (net_client_t*) malloc(sizeof(net_client_t) * file.max_clients); // max clients
-
-    // configs for this server
-    net_server_config_t server_configs;
-    server_configs.serve = &alive;
-    server_configs.clients = client_sockets;
-    server_configs.clients_max = file.max_clients;
-    server_configs.timeout_us = (1000)*5000; // miliseconds
-
-    // spin server and handle clients
-    server_configs.sock_server = net_open(file.port);
-
-#if demo
-    int ret = net_server(&server_configs,
-                         &handler,
-                         (net_client_handler_args_t*)&handler_args,
-                         0);
-#else
-    int ret = net_server(&server_configs,
-                        &handler,
-                        (net_client_handler_args_t*)&handler_args,
-                        &idle);
-#endif
-    net_close(server_configs.sock_server);
-    net_finish();
-
-    free(client_sockets);
-    client_sockets = 0;
-
+    // Close the file
+    H5Fclose(file_id);
+    printf("HDF5 file '%s' created with %d groups.\n", FILE_NAME, NUM_GROUPS);
     return 0;
 }
